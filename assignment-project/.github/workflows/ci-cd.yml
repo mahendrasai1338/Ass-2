@@ -3,20 +3,17 @@ name: CI-CD Dev Deployment
 on:
   push:
     branches:
-      - master
       - main
+      - master
+  workflow_dispatch:
 
 jobs:
-  build-test-push-deploy-dev:
+  build-test:
     runs-on: ubuntu-latest
-
-    env:
-      IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/sample-app
-      IMAGE_TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,32 +29,24 @@ jobs:
         run: |
           python -m pytest
 
-      - name: Log in to Docker Hub
-        run: |
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
       - name: Build Docker image
         run: |
-          docker build -t $IMAGE_NAME:$IMAGE_TAG .
-          docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+          docker build -t sample-app:${{ github.sha }} .
 
-      - name: Push Docker image
+      - name: Run container for health check
         run: |
-          docker push $IMAGE_NAME:$IMAGE_TAG
-          docker push $IMAGE_NAME:latest
+          docker run -d --name sample-app-test -p 8000:8000 --env-file .env.dev sample-app:${{ github.sha }}
 
-      - name: Create deploy env file
+      - name: Wait for app startup
         run: |
-          echo "IMAGE_NAME=$IMAGE_NAME:$IMAGE_TAG" > .deploy-dev.env
+          sleep 10
 
-      - name: Deploy to Dev
+      - name: Health check
         run: |
-          docker compose -f docker-compose.dev.yml --env-file .deploy-dev.env down || true
-          docker compose -f docker-compose.dev.yml --env-file .deploy-dev.env up -d
+          curl -f http://localhost:8000/health
 
-      - name: Wait for startup
-        run: sleep 10
-
-      - name: Health check on Dev
+      - name: Stop test container
+        if: always()
         run: |
-          curl -f http://localhost:8001/health
+          docker stop sample-app-test || true
+          docker rm sample-app-test || true
