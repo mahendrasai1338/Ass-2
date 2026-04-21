@@ -3,6 +3,7 @@ name: CI-CD Dev Deployment
 on:
   push:
     branches:
+      - master
       - main
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Python
         uses: actions/setup-python@v5
