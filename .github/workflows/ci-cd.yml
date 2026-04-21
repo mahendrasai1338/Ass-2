@@ -8,8 +8,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-test:
+  build-test-push-dev:
     runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/sample-app
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout code
@@ -18,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -29,23 +33,32 @@ jobs:
         run: |
           python -m pytest
 
+      - name: Login to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
       - name: Build Docker image
         run: |
-          docker build -t sample-app:${{ github.sha }} .
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+          docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+
+      - name: Push Docker image
+        run: |
+          docker push $IMAGE_NAME:$IMAGE_TAG
+          docker push $IMAGE_NAME:latest
 
       - name: Run container for health check
         run: |
-          docker run -d --name sample-app-test -p 8000:8000 --env-file .env.dev sample-app:${{ github.sha }}
+          docker run -d --name sample-app-test -p 8000:8000 --env-file .env.dev $IMAGE_NAME:$IMAGE_TAG
 
-      - name: Wait for app startup
-        run: |
-          sleep 10
+      - name: Wait for startup
+        run: sleep 10
 
       - name: Health check
         run: |
           curl -f http://localhost:8000/health
 
-      - name: Stop test container
+      - name: Cleanup container
         if: always()
         run: |
           docker stop sample-app-test || true
