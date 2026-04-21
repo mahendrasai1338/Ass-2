@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-test-push-dev:
-    runs-on: ubuntu-latest
+    runs-on: linux
 
     env:
       IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/sample-app
