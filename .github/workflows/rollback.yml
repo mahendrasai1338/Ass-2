@@ -1,0 +1,45 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Previous Docker image tag to rollback"
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/sample-app
+      IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Pull rollback image
+        run: |
+          docker pull $IMAGE_NAME:$IMAGE_TAG
+
+      - name: Run rollback container
+        run: |
+          docker run -d --name sample-app-rollback -p 8002:8000 --env-file .env.prod $IMAGE_NAME:$IMAGE_TAG
+
+      - name: Wait for startup
+        run: sleep 10
+
+      - name: Verify rollback health
+        run: |
+          curl -f http://localhost:8002/health
+
+      - name: Cleanup container
+        if: always()
+        run: |
+          docker stop sample-app-rollback || true
+          docker rm sample-app-rollback || true
