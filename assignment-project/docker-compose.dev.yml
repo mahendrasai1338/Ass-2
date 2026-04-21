@@ -1,0 +1,10 @@
+version: "3.9"
+
+services:
+  app:
+    image: ${IMAGE_NAME}
+    container_name: sample-app-dev
+    env_file:
+      - .env.dev
+    ports:
+      - "8001:8000"
